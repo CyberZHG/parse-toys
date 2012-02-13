@@ -109,3 +109,21 @@ Fraction -> . Integer
         grammar = Grammar()
         with self.assertRaises(RuntimeError):
             grammar.parse('S ->')
+
+    def test_grammar_min_length(self):
+        grammar = Grammar()
+        grammar.parse("""
+Number -> Integer | Real
+Integer -> Digit | Integer Digit
+Real -> Integer Fraction Scale
+Fraction -> . Integer
+Scale -> e Sign Integer | Empty
+Digit -> 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+Sign -> + | -
+Empty -> ε
+        """)
+        grammar.init_min_length()
+        self.assertEqual(0, grammar.symbols['Scale'].min_length)
+        self.assertEqual(1, grammar.symbols['Number'].min_length)
+        self.assertEqual(2, grammar.symbols['Fraction'].min_length)
+        self.assertEqual(3, grammar.symbols['Real'].min_length)

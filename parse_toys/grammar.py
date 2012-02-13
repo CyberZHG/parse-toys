@@ -144,10 +144,7 @@ class Grammar(object):
 
     def init_nullable(self, symbol: Optional[Symbol] = None) -> bool:
         if symbol is None:
-            for symbol in self.productions.keys():
-                if symbol.nullable is None:
-                    self.init_nullable(symbol)
-            return False
+            return all([self.init_nullable(symbol) for symbol in self.productions.keys()][:1])
         if symbol.nullable is None:
             symbol.nullable = False
             if self.is_non_terminal(symbol):
@@ -156,3 +153,20 @@ class Grammar(object):
                         symbol.nullable = True
                         break
         return symbol.nullable
+
+    def init_min_length(self, symbol: Optional[Symbol] = None) -> int:
+        if symbol is None:
+            return min([self.init_min_length(symbol) for symbol in self.productions.keys()])
+        attr_name = 'min_length'
+        if not hasattr(symbol, attr_name):
+            setattr(symbol, attr_name, int(1e9))
+            if self.is_terminal(symbol):
+                if isinstance(symbol, Epsilon):
+                    setattr(symbol, attr_name, 0)
+                else:
+                    setattr(symbol, attr_name, len(str(symbol)))
+            else:
+                setattr(symbol, attr_name, min(getattr(symbol, attr_name), min([
+                    sum([self.init_min_length(sub) for sub in production]) for production in self.productions[symbol]
+                ])))
+        return getattr(symbol, attr_name)
