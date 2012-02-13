@@ -11,10 +11,11 @@ class TestGrammar(TestCase):
             [Symbol('D'), Symbol('E')],
             [Symbol('F')],
         ])
-        self.assertTrue(prod.has_production((Symbol('D'), Symbol('E'))))
-        self.assertTrue(prod.has_production([Symbol('D'), Symbol('E')]))
-        self.assertFalse(prod.has_production((Symbol('D'),)))
-        self.assertFalse(prod.has_production((Symbol('D'), Symbol('E'), Symbol('F'))))
+        repr(Symbol('D'))
+        self.assertTrue(prod.exist((Symbol('D'), Symbol('E'))))
+        self.assertTrue(prod.exist([Symbol('D'), Symbol('E')]))
+        self.assertFalse(prod.exist((Symbol('D'),)))
+        self.assertFalse(prod.exist((Symbol('D'), Symbol('E'), Symbol('F'))))
         self.assertEqual(str(prod), 'A B C | D E | F')
 
     def test_parse_case_1(self):

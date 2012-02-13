@@ -55,3 +55,14 @@ class TestUnger(TestCase):
                                    ('ε', 'ε'),
                                    ('d', 'd')),
                                   ('d', 'd')))
+
+    def test_case_4(self):
+        grammar = Grammar()
+        grammar.init_min_length()
+        grammar.parse("""
+            S -> A B
+            A -> a b
+            B -> c
+        """)
+        result = parse_with_unger(grammar, 'abc')
+        self.assertEqual(result, ('A B', ('a b', 'a', 'b'), ('c', 'c')))

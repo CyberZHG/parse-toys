@@ -1,5 +1,5 @@
-from typing import Optional, Sequence, Dict, Union
-from collections import OrderedDict
+from typing import Optional, Sequence, Dict, Union, Set
+from collections import OrderedDict, deque
 
 __all__ = ['Symbol', 'Epsilon', 'Productions', 'Grammar']
 
@@ -25,6 +25,9 @@ class Symbol(object):
 
     def __str__(self):
         return self.symbol
+
+    def __repr__(self):
+        return '`' + self.symbol + '`'
 
     def __hash__(self):
         return hash(self.symbol)
@@ -71,7 +74,12 @@ class Productions(object):
     def __str__(self):
         return ' | '.join(map(lambda x: ' '.join(map(str, x)), self.productions))
 
-    def has_production(self, production: Sequence[Symbol]):
+    def add(self, production: Sequence[Symbol]):
+        production = tuple(production)
+        if not self.exist(production):
+            self.productions.append(tuple(production))
+
+    def exist(self, production: Sequence[Symbol]):
         production = tuple(production)
         if production in self:
             return True
@@ -83,6 +91,7 @@ class Grammar(object):
     def __init__(self):
         self.start = None
         self.symbols: Dict[str, Symbol] = {}
+        self.composes: Dict[Symbol, Set[Symbol]] = {}
         self.productions: Dict[Symbol, Productions] = OrderedDict()
         self.empty_symbol = Epsilon()
 
@@ -96,7 +105,29 @@ class Grammar(object):
                 text += ' ' * (longest + len(' -')) + '| ' + ' '.join(map(str, productions[i])) + '\n'
         return text
 
+    def reset(self):
+        self.start = None
+        self.symbols = {}
+        self.composes = {}
+        self.productions = OrderedDict()
+
+    def get_or_create_symbol(self, symbol: str):
+        if symbol not in self.symbols:
+            self.symbols[symbol] = Symbol(symbol)
+        return self.symbols[symbol]
+
+    def add_production(self, head: Symbol, production: Sequence[Symbol]):
+        for symbol in production:
+            if symbol not in self.composes:
+                self.composes[symbol] = set()
+            self.composes[symbol].add(head)
+        if head in self.productions:
+            self.productions[head].add(production)
+        else:
+            self.productions[head] = Productions([production])
+
     def parse(self, text: str):
+        self.reset()
         tokens = [token for token in text.replace('\n', ' ').replace('\r', ' ').split(' ') if len(token) > 0]
         split_indices = []
         for i, token in enumerate(tokens):
@@ -108,32 +139,24 @@ class Grammar(object):
                                f'{" ".join(tokens[:split_indices[0] + 1])}')
         for i in range(len(split_indices) - 1):
             start, stop = split_indices[i], split_indices[i + 1]
-            if tokens[start] not in self.symbols:
-                self.symbols[tokens[start]] = Symbol(tokens[start])
-            head = self.symbols[tokens[start]]
+            head = self.get_or_create_symbol(tokens[start])
             if self.start is None:
                 self.start = head
             start += 2
-            productions, production = [], []
+            production = []
             for j in range(start, stop):
                 if tokens[j] == '|':
                     if len(production) == 0:
                         raise RuntimeError(f'Production should not be empty for symbol: {head}')
-                    productions.append(production)
+                    self.add_production(head, production)
                     production = []
                 elif tokens[j] in {'ε', 'ϵ'}:
                     production.append(self.empty_symbol)
                 else:
-                    if tokens[j] not in self.symbols:
-                        self.symbols[tokens[j]] = Symbol(tokens[j])
-                    production.append(self.symbols[tokens[j]])
+                    production.append(self.get_or_create_symbol(tokens[j]))
             if len(production) == 0:
                 raise RuntimeError(f'Production should not be empty for symbol: {head}')
-            productions.append(production)
-            if head in self.productions:
-                self.productions[head].productions.extend(productions)
-            else:
-                self.productions[head] = Productions(productions)
+            self.add_production(head, production)
 
     def is_terminal(self, symbol: Union[str, Symbol]):
         if isinstance(symbol, str):
@@ -145,33 +168,48 @@ class Grammar(object):
             symbol = Symbol(symbol)
         return symbol in self.productions
 
-    def init_nullable(self, symbol: Optional[Symbol] = None) -> bool:
-        if symbol is None:
-            return all([self.init_nullable(symbol) for symbol in self.productions.keys()][:1])
-        if symbol.nullable is None:
-            symbol.nullable = False
-            if self.is_non_terminal(symbol):
-                for production in self.productions[symbol]:
-                    if all([self.init_nullable(symbol) for symbol in production]):
-                        symbol.nullable = True
-                        break
-        return symbol.nullable
-
-    def init_min_length(self, symbol: Optional[Symbol] = None) -> int:
-        if symbol is None:
-            if len(self.productions) == 0:
-                return 0
-            return min([self.init_min_length(symbol) for symbol in self.productions.keys()])
-        attr_name = 'min_length'
-        if not hasattr(symbol, attr_name):
-            setattr(symbol, attr_name, int(1e9))
+    def init_nullable(self):
+        queue, in_queue = deque(), set()
+        for symbol in self.symbols.values():
+            queue.append(symbol)
+            in_queue.add(symbol)
+        while len(queue) > 0:
+            symbol = queue.popleft()
+            in_queue.remove(symbol)
             if self.is_terminal(symbol):
-                if isinstance(symbol, Epsilon):
-                    setattr(symbol, attr_name, 0)
-                else:
-                    setattr(symbol, attr_name, len(str(symbol)))
+                symbol.nullable = isinstance(symbol, Epsilon)
             else:
-                setattr(symbol, attr_name, min(getattr(symbol, attr_name), min([
-                    sum([self.init_min_length(sub) for sub in production]) for production in self.productions[symbol]
-                ])))
-        return getattr(symbol, attr_name)
+                for production in self.productions[symbol]:
+                    if all([child.nullable is True for child in production]):
+                        symbol.nullable = True
+                        for head in self.composes.get(symbol, ()):
+                            if head.nullable is not True and head not in in_queue:
+                                queue.append(head)
+                                in_queue.add(head)
+                        break
+                else:
+                    symbol.nullable = False
+
+    def init_min_length(self):
+        attr_name = 'min_length'
+        queue, in_queue = deque(), set()
+        setattr(self.empty_symbol, attr_name, 0)
+        for symbol in self.symbols.values():
+            if self.is_terminal(symbol):
+                setattr(symbol, attr_name, len(str(symbol)))
+            else:
+                queue.append(symbol)
+                in_queue.add(symbol)
+                setattr(symbol, attr_name, 1e100)
+        while len(queue) > 0:
+            symbol = queue.popleft()
+            in_queue.remove(symbol)
+            min_length = getattr(symbol, attr_name)
+            for production in self.productions[symbol]:
+                min_length = min(min_length, sum([getattr(child, attr_name) for child in production]))
+            if min_length < getattr(symbol, attr_name):
+                setattr(symbol, attr_name, min_length)
+                for head in self.composes.get(symbol, ()):
+                    if head not in in_queue:
+                        queue.append(head)
+                        in_queue.add(head)
