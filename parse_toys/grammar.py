@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Dict, Set
+from typing import Optional, Sequence, Dict, Union
 from collections import OrderedDict
 
 __all__ = ['Symbol', 'Epsilon', 'Productions', 'Grammar']
@@ -81,9 +81,8 @@ class Productions(object):
 class Grammar(object):
 
     def __init__(self):
+        self.symbols: Dict[str, Symbol] = {}
         self.productions: Dict[Symbol, Productions] = OrderedDict()
-        self.terminals: Set[Symbol] = set()
-        self.non_terminals: Set[Symbol] = set()
         self.empty_symbol = Epsilon()
 
     def __str__(self):
@@ -108,7 +107,9 @@ class Grammar(object):
                                f'{" ".join(tokens[:split_indices[0] + 1])}')
         for i in range(len(split_indices) - 1):
             start, stop = split_indices[i], split_indices[i + 1]
-            head = Symbol(tokens[start])
+            if tokens[start] not in self.symbols:
+                self.symbols[tokens[start]] = Symbol(tokens[start])
+            head = self.symbols[tokens[start]]
             start += 2
             productions, production = [], []
             for j in range(start, stop):
@@ -120,7 +121,9 @@ class Grammar(object):
                 elif tokens[j] in {'ε', 'ϵ'}:
                     production.append(self.empty_symbol)
                 else:
-                    production.append(Symbol(tokens[j]))
+                    if tokens[j] not in self.symbols:
+                        self.symbols[tokens[j]] = Symbol(tokens[j])
+                    production.append(self.symbols[tokens[j]])
             if len(production) == 0:
                 raise RuntimeError(f'Production should not be empty for symbol: {head}')
             productions.append(production)
@@ -128,3 +131,28 @@ class Grammar(object):
                 self.productions[head].productions.extend(productions)
             else:
                 self.productions[head] = Productions(productions)
+
+    def is_terminal(self, symbol: Union[str, Symbol]):
+        if isinstance(symbol, str):
+            symbol = Symbol(symbol)
+        return symbol not in self.productions
+
+    def is_non_terminal(self, symbol: Union[str, Symbol]):
+        if isinstance(symbol, str):
+            symbol = Symbol(symbol)
+        return symbol in self.productions
+
+    def init_nullable(self, symbol: Optional[Symbol] = None) -> bool:
+        if symbol is None:
+            for symbol in self.productions.keys():
+                if symbol.nullable is None:
+                    self.init_nullable(symbol)
+            return False
+        if symbol.nullable is None:
+            symbol.nullable = False
+            if self.is_non_terminal(symbol):
+                for production in self.productions[symbol]:
+                    if all([self.init_nullable(symbol) for symbol in production]):
+                        symbol.nullable = True
+                        break
+        return symbol.nullable
