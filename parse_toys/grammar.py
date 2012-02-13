@@ -81,6 +81,7 @@ class Productions(object):
 class Grammar(object):
 
     def __init__(self):
+        self.start = None
         self.symbols: Dict[str, Symbol] = {}
         self.productions: Dict[Symbol, Productions] = OrderedDict()
         self.empty_symbol = Epsilon()
@@ -110,6 +111,8 @@ class Grammar(object):
             if tokens[start] not in self.symbols:
                 self.symbols[tokens[start]] = Symbol(tokens[start])
             head = self.symbols[tokens[start]]
+            if self.start is None:
+                self.start = head
             start += 2
             productions, production = [], []
             for j in range(start, stop):
@@ -156,6 +159,8 @@ class Grammar(object):
 
     def init_min_length(self, symbol: Optional[Symbol] = None) -> int:
         if symbol is None:
+            if len(self.productions) == 0:
+                return 0
             return min([self.init_min_length(symbol) for symbol in self.productions.keys()])
         attr_name = 'min_length'
         if not hasattr(symbol, attr_name):
