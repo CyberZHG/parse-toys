@@ -89,11 +89,11 @@ class Productions(object):
 class Grammar(object):
 
     def __init__(self):
-        self.start = None
-        self.symbols: Dict[str, Symbol] = {}
+        self.start: Optional[Symbol] = None
+        self.empty_symbol = Epsilon()
+        self.symbols: Dict[str, Symbol] = {'ε': self.empty_symbol}
         self.composes: Dict[Symbol, Set[Symbol]] = {}
         self.productions: Dict[Symbol, Productions] = OrderedDict()
-        self.empty_symbol = Epsilon()
 
     def __str__(self):
         longest = max(len(str(symbol)) for symbol in self.productions.keys())
@@ -107,9 +107,37 @@ class Grammar(object):
 
     def reset(self):
         self.start = None
-        self.symbols = {}
+        self.symbols = {'ε': self.empty_symbol}
         self.composes = {}
         self.productions = OrderedDict()
+
+    def clone(self):
+        grammar = Grammar()
+        grammar.empty_symbol = self.empty_symbol
+        for name, symbol in self.symbols.items():
+            if name == self.empty_symbol.symbol:
+                grammar.symbols[name] = grammar.empty_symbol
+            else:
+                grammar.symbols[name] = Symbol(name)
+            for key, val in symbol.__dict__.items():
+                setattr(grammar.symbols[name], key, val)
+        grammar.start = grammar.symbols[self.start.symbol]
+        for symbol, composes in self.composes.items():
+            grammar.composes[symbol] = set(grammar.symbols[sym.symbol] for sym in composes)
+        for symbol, productions in self.productions.items():
+            grammar.productions[symbol] = Productions([
+                [grammar.symbols[sym.symbol] for sym in production] for production in productions])
+        return grammar
+
+    def create_aux(self, symbol: Symbol):
+        name = symbol.symbol
+        index = 0
+        while True:
+            index += 1
+            new_name = f'{name}_{index}'
+            if new_name not in self.symbols:
+                self.symbols[new_name] = Symbol(new_name)
+                return self.symbols[new_name]
 
     def get_or_create_symbol(self, symbol: str):
         if symbol not in self.symbols:
@@ -125,6 +153,9 @@ class Grammar(object):
             self.productions[head].add(production)
         else:
             self.productions[head] = Productions([production])
+
+    def remove(self, head: Symbol):
+        del self.productions[head]
 
     def parse(self, text: str):
         self.reset()
@@ -196,6 +227,8 @@ class Grammar(object):
         setattr(self.empty_symbol, attr_name, 0)
         for symbol in self.symbols.values():
             if self.is_terminal(symbol):
+                if isinstance(symbol, Epsilon):
+                    continue
                 setattr(symbol, attr_name, len(str(symbol)))
             else:
                 queue.append(symbol)
