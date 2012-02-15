@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from parse_toys import Grammar, eliminate_epsilon_rules
+from parse_toys import Grammar, eliminate_epsilon_rules, eliminate_unit_rules
 
 
 class TestChomskyNormalForm(TestCase):
@@ -71,7 +71,114 @@ Fraction -> . Integer
             M -> ε
         """)
         grammar = eliminate_epsilon_rules(grammar)
-        print(grammar)
         self.assertEqual(str(grammar), """
 S_1 -> ε
+"""[1:])
+
+    def test_eliminate_epsilon_rules_case_4(self):
+        grammar = Grammar()
+        grammar.parse("""
+            S -> L M | A
+            A -> M L
+            L -> ε
+            M -> ε
+        """)
+        grammar = eliminate_epsilon_rules(grammar)
+        self.assertEqual(str(grammar), """
+S_1 -> ε
+"""[1:])
+
+    def test_eliminate_unit_rules_case_1(self):
+        grammar = Grammar()
+        grammar.parse("""
+Number -> Integer | Real
+Integer -> Digit | Integer Digit
+Real -> Integer Fraction Scale
+Fraction -> . Integer
+Scale -> e Sign Integer | Empty
+Digit -> 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+Sign -> + | -
+Empty -> ε
+        """)
+        grammar = eliminate_epsilon_rules(grammar)
+        grammar = eliminate_unit_rules(grammar)
+        self.assertEqual(str(grammar), """
+  Number -> 0
+          | 1
+          | 2
+          | 3
+          | 4
+          | 5
+          | 6
+          | 7
+          | 8
+          | 9
+          | Integer Digit
+          | Integer Fraction
+          | Integer Fraction Scale_1
+ Integer -> 0
+          | 1
+          | 2
+          | 3
+          | 4
+          | 5
+          | 6
+          | 7
+          | 8
+          | 9
+          | Integer Digit
+Fraction -> . Integer
+   Digit -> 0
+          | 1
+          | 2
+          | 3
+          | 4
+          | 5
+          | 6
+          | 7
+          | 8
+          | 9
+    Sign -> +
+          | -
+  Real_1 -> Integer Fraction
+          | Integer Fraction Scale_1
+ Scale_1 -> e Sign Integer
+"""[1:])
+
+    def test_eliminate_unit_rules_case_2(self):
+        grammar = Grammar()
+        grammar.parse("""
+            S -> A
+            A -> B
+            B -> C
+            C -> D
+            D -> E
+            E -> F
+            F -> a
+        """)
+        grammar = eliminate_epsilon_rules(grammar)
+        grammar = eliminate_unit_rules(grammar)
+        self.assertEqual(str(grammar), """
+S -> a
+A -> a
+B -> a
+C -> a
+D -> a
+E -> a
+F -> a
+"""[1:])
+
+    def test_eliminate_unit_rules_case_3(self):
+        grammar = Grammar()
+        grammar.parse("""
+            S -> A
+            A -> A | a
+        """)
+        grammar = eliminate_epsilon_rules(grammar)
+        grammar = eliminate_unit_rules(grammar)
+        self.assertEqual(str(grammar), """
+S -> A
+   | a
+A -> A
+   | a
 """[1:])

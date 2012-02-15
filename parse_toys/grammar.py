@@ -74,10 +74,17 @@ class Productions(object):
     def __str__(self):
         return ' | '.join(map(lambda x: ' '.join(map(str, x)), self.productions))
 
-    def add(self, production: Sequence[Symbol]):
+    def add(self, production: Sequence[Symbol]) -> bool:
+        """Add a new production to the current set.
+
+        :param production: The new production to be added.
+        :return: True if the new production does not exist in the old set.
+        """
         production = tuple(production)
         if not self.exist(production):
             self.productions.append(tuple(production))
+            return True
+        return False
 
     def exist(self, production: Sequence[Symbol]):
         production = tuple(production)
@@ -96,11 +103,13 @@ class Grammar(object):
         self.productions: Dict[Symbol, Productions] = OrderedDict()
 
     def __str__(self):
-        longest = max(len(str(symbol)) for symbol in self.productions.keys())
+        longest = max(len(str(head)) for head in self.productions.keys())
         text = ''
-        for symbol, productions in self.productions.items():
-            symbol = str(symbol)
-            text += ' ' * (longest - len(symbol)) + symbol + ' -> ' + ' '.join(map(str, productions[0])) + '\n'
+        heads = [self.start] + [head for head in self.productions.keys() if head != self.start]
+        for head in heads:
+            productions = self.productions[head]
+            head = str(head)
+            text += ' ' * (longest - len(head)) + head + ' -> ' + ' '.join(map(str, productions[0])) + '\n'
             for i in range(1, len(productions)):
                 text += ' ' * (longest + len(' -')) + '| ' + ' '.join(map(str, productions[i])) + '\n'
         return text
@@ -144,15 +153,24 @@ class Grammar(object):
             self.symbols[symbol] = Symbol(symbol)
         return self.symbols[symbol]
 
-    def add_production(self, head: Symbol, production: Sequence[Symbol]):
+    def add_production(self, head: Symbol, production: Sequence[Symbol]) -> bool:
+        """Add a new production to the grammar.
+
+        :param head: The head to be derived.
+        :param production: The new production.
+        :return: True if the production does not exist in the grammar.
+        """
         for symbol in production:
             if symbol not in self.composes:
                 self.composes[symbol] = set()
             self.composes[symbol].add(head)
         if head in self.productions:
-            self.productions[head].add(production)
-        else:
-            self.productions[head] = Productions([production])
+            return self.productions[head].add(production)
+        self.productions[head] = Productions([production])
+        return True
+
+    def clean(self, head: Symbol):
+        self.productions[head] = Productions([])
 
     def remove(self, head: Symbol):
         del self.productions[head]
