@@ -1,10 +1,10 @@
 import copy
-from typing import Dict
+from typing import Dict, Tuple
 from collections import deque
 
 from parse_toys.grammar import Symbol, Grammar
 
-__all__ = ['eliminate_epsilon_rules', 'eliminate_unit_rules']
+__all__ = ['eliminate_epsilon_rules', 'eliminate_unit_rules', 'to_chomsky_normal_form']
 
 
 def eliminate_epsilon_rules(grammar: Grammar, init_nullable: bool = True):
@@ -123,4 +123,64 @@ def eliminate_unit_rules(grammar: Grammar):
                 if symbol in grammar.productions and symbol not in in_queue:
                     queue.append(symbol)
                     in_queue.add(symbol)
+    return grammar
+
+
+def to_chomsky_normal_form(grammar: Grammar):
+    """Transform the grammar into Chomsky Normal Form.
+    The grammar will have no ε-rules (except the start) or unit-rules.
+
+    :param grammar: The old grammar.
+    :return: The new grammar.
+    """
+    grammar = eliminate_epsilon_rules(grammar)
+    grammar = eliminate_unit_rules(grammar)
+    grammar.remove_unreachable()
+    heads = list(grammar.productions.keys())
+
+    # Find existed productions
+    singles: Dict[Symbol, Symbol] = {}
+    duals: Dict[Tuple[Symbol, Symbol], Symbol] = {}
+    for head in heads:
+        productions = grammar.productions[head]
+        if len(productions) == 1:
+            production = productions[0]
+            if len(production) == 1:
+                if grammar.is_terminal(production[0]):
+                    singles[production[0]] = head
+            elif len(production) == 2:
+                if grammar.is_non_terminal(production[0]) and grammar.is_non_terminal(production[1]):
+                    duals[(production[0], production[1])] = head
+
+    def _get_or_create_single(symbol: Symbol):
+        if grammar.is_non_terminal(symbol):
+            return symbol
+        if symbol in singles:
+            return singles[symbol]
+        _head = grammar.create_aux('T')
+        grammar.add_production(_head, [symbol])
+        singles[symbol] = _head
+        return _head
+
+    def _get_or_create_dual(a: Symbol, b: Symbol):
+        if (a, b) in duals:
+            return duals[(a, b)]
+        _head = grammar.create_aux('N')
+        grammar.add_production(_head, [a, b])
+        duals[(a, b)] = _head
+        return _head
+
+    # Split the long productions
+    for head in heads:
+        productions = grammar.productions[head]
+        grammar.clean(head)
+        for production in productions:
+            if len(production) == 1:
+                grammar.add_production(head, production)
+            else:
+                last = _get_or_create_single(production[0])
+                for i in range(1, len(production) - 1):
+                    current = _get_or_create_single(production[i])
+                    last = _get_or_create_dual(last, current)
+                grammar.add_production(head, [last, _get_or_create_single(production[-1])])
     return grammar

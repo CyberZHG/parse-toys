@@ -138,8 +138,11 @@ class Grammar(object):
                 [grammar.symbols[sym.symbol] for sym in production] for production in productions])
         return grammar
 
-    def create_aux(self, symbol: Symbol):
-        name = symbol.symbol
+    def create_aux(self, symbol: Union[str, Symbol]):
+        if isinstance(symbol, str):
+            name = symbol
+        else:
+            name = symbol.symbol
         index = 0
         while True:
             index += 1
@@ -264,3 +267,19 @@ class Grammar(object):
                     if head not in in_queue:
                         queue.append(head)
                         in_queue.add(head)
+
+    def remove_unreachable(self):
+        queue, in_queue = deque(), set()
+        queue.append(self.start)
+        in_queue.add(self.start)
+        while len(queue) > 0:
+            head = queue.popleft()
+            for production in self.productions[head]:
+                for symbol in production:
+                    if self.is_non_terminal(symbol) and symbol not in in_queue:
+                        queue.append(symbol)
+                        in_queue.add(symbol)
+        heads = list(self.productions.keys())
+        for head in heads:
+            if head not in in_queue:
+                self.remove(head)
