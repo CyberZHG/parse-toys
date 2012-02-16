@@ -7,12 +7,15 @@ from parse_toys.grammar import Symbol, Grammar
 __all__ = ['eliminate_epsilon_rules', 'eliminate_unit_rules', 'to_chomsky_normal_form']
 
 
-def eliminate_epsilon_rules(grammar: Grammar, init_nullable: bool = True):
+def eliminate_epsilon_rules(grammar: Grammar,
+                            init_nullable: bool = True,
+                            return_mapping: bool = False):
     """Eliminate ε-rules in the grammar.
     Only the start symbol can derive ε after the transformation.
 
     :param grammar: The old grammar.
     :param init_nullable: Can be False if the nullables were already calculated.
+    :param return_mapping: Whether to return the mapping of heads.
     :return: The new grammar.
     """
     grammar = grammar.clone()
@@ -81,7 +84,10 @@ def eliminate_epsilon_rules(grammar: Grammar, init_nullable: bool = True):
         if old_start.nullable:
             grammar.add_production(grammar.start, [grammar.empty_symbol])
             grammar.start.nullable = True
-    return grammar
+    results = grammar
+    if return_mapping:
+        results = (grammar, head_mapping)
+    return results
 
 
 def eliminate_unit_rules(grammar: Grammar):
@@ -126,16 +132,23 @@ def eliminate_unit_rules(grammar: Grammar):
     return grammar
 
 
-def to_chomsky_normal_form(grammar: Grammar):
+def to_chomsky_normal_form(grammar: Grammar,
+                           return_mapping: bool = False,
+                           remove_unreachable: bool = True):
     """Transform the grammar into Chomsky Normal Form.
     The grammar will have no ε-rules (except the start) or unit-rules.
 
     :param grammar: The old grammar.
+    :param return_mapping: Whether to return the mapping of heads.
+    :param remove_unreachable: Whether to remove unreachable productions.
     :return: The new grammar.
     """
-    grammar = eliminate_epsilon_rules(grammar)
+    grammar = eliminate_epsilon_rules(grammar, return_mapping=return_mapping)
+    if return_mapping:
+        grammar, head_mapping = grammar
     grammar = eliminate_unit_rules(grammar)
-    grammar.remove_unreachable()
+    if remove_unreachable:
+        grammar.remove_unreachable()
     heads = list(grammar.productions.keys())
 
     # Find existed productions
@@ -183,4 +196,7 @@ def to_chomsky_normal_form(grammar: Grammar):
                     current = _get_or_create_single(production[i])
                     last = _get_or_create_dual(last, current)
                 grammar.add_production(head, [last, _get_or_create_single(production[-1])])
-    return grammar
+    results = grammar
+    if return_mapping:
+        results = (grammar, head_mapping)
+    return results

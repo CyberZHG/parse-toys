@@ -27,7 +27,7 @@ class Symbol(object):
         return self.symbol
 
     def __repr__(self):
-        return '`' + self.symbol + '`'
+        return f'`{str(self)}`'
 
     def __hash__(self):
         return hash(self.symbol)
@@ -39,7 +39,10 @@ class Symbol(object):
 class Epsilon(Symbol):
 
     def __init__(self):
-        super().__init__(symbol='ε', terminal=True, auxiliary=False, nullable=True)
+        super().__init__(symbol='', terminal=True, auxiliary=False, nullable=True)
+
+    def __str__(self):
+        return 'ε'
 
 
 class ProductionIterator(object):
@@ -98,7 +101,7 @@ class Grammar(object):
     def __init__(self):
         self.start: Optional[Symbol] = None
         self.empty_symbol = Epsilon()
-        self.symbols: Dict[str, Symbol] = {'ε': self.empty_symbol}
+        self.symbols: Dict[str, Symbol] = {'': self.empty_symbol}
         self.composes: Dict[Symbol, Set[Symbol]] = {}
         self.productions: Dict[Symbol, Productions] = OrderedDict()
 
@@ -116,7 +119,7 @@ class Grammar(object):
 
     def reset(self):
         self.start = None
-        self.symbols = {'ε': self.empty_symbol}
+        self.symbols = {'': self.empty_symbol}
         self.composes = {}
         self.productions = OrderedDict()
 
@@ -148,7 +151,7 @@ class Grammar(object):
             index += 1
             new_name = f'{name}_{index}'
             if new_name not in self.symbols:
-                self.symbols[new_name] = Symbol(new_name)
+                self.symbols[new_name] = Symbol(new_name, auxiliary=True)
                 return self.symbols[new_name]
 
     def get_or_create_symbol(self, symbol: str):
